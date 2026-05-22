@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>WireBoard · Historical analytics</title>
+    <style>
+      :root {
+        --blue: #2563eb;
+        --gray-50: #f8fafc;
+        --gray-100: #f1f5f9;
+        --gray-200: #e2e8f0;
+        --gray-500: #64748b;
+        --gray-700: #334155;
+        --gray-900: #0f172a;
+        --radius: 8px;
+      }
+      *, *::before, *::after { box-sizing: border-box; }
+      body {
+        font: 14px/1.6 -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+        color: var(--gray-900);
+        max-width: 760px;
+        margin: 0 auto;
+        padding: 2em 1.5em 4em;
+        background: white;
+      }
+      header {
+        display: flex; align-items: center; gap: 0.9em;
+        padding-bottom: 1em; margin-bottom: 2em;
+        border-bottom: 1px solid var(--gray-200);
+      }
+      header img { height: 28px; }
+      header h1 { font-size: 16px; font-weight: 600; margin: 0; color: var(--gray-700); }
+      header .crumb { margin-left: auto; font-size: 13px; }
+      header .crumb a { color: var(--blue); text-decoration: none; }
+      header .crumb a:hover { text-decoration: underline; }
+      h2 {
+        font-size: 12px; font-weight: 600;
+        text-transform: uppercase; letter-spacing: 0.06em;
+        color: var(--gray-500);
+        margin: 2em 0 0.6em;
+      }
+      .stats {
+        display: grid; grid-template-columns: repeat(4, 1fr);
+        gap: 1px;
+        background: var(--gray-200);
+        border: 1px solid var(--gray-200);
+        border-radius: var(--radius);
+        overflow: hidden;
+      }
+      .stat { background: white; padding: 1em 1.2em; }
+      .stat .label {
+        font-size: 11px; font-weight: 600;
+        text-transform: uppercase; letter-spacing: 0.05em;
+        color: var(--gray-500);
+      }
+      .stat .value {
+        font-variant-numeric: tabular-nums;
+        font-size: 22px; font-weight: 600;
+        color: var(--gray-900);
+        margin-top: 0.2em;
+      }
+      table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+      th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--gray-200); }
+      tr:last-child td { border-bottom: 0; }
+      th {
+        background: var(--gray-100);
+        font-weight: 600; font-size: 11px;
+        text-transform: uppercase; letter-spacing: 0.05em;
+        color: var(--gray-500);
+      }
+      code {
+        font: 12px/1.4 ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+        background: var(--gray-100); padding: 2px 6px; border-radius: 4px; color: var(--gray-700);
+      }
+      .muted { color: var(--gray-500); }
+      .error {
+        background: #fef2f2; border: 1px solid #fecaca; color: #991b1b;
+        padding: 0.8em 1em; border-radius: var(--radius);
+      }
+      @media (max-width: 600px) {
+        .stats { grid-template-columns: repeat(2, 1fr); }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <img src="https://wireboard.io/img/logo-blue.png" alt="WireBoard" />
+      <h1>Historical analytics</h1>
+      <span class="crumb"><a href="./">all examples</a></span>
+    </header>
+
+    <p class="muted" id="site-label">loading…</p>
+
+    <h2>Last 7 days</h2>
+    <div class="stats" id="stats"><div class="stat"><span class="muted">loading…</span></div></div>
+
+    <h2>Top countries</h2>
+    <table id="countries"><tbody><tr><td class="muted">loading…</td></tr></tbody></table>
+
+    <h2>Daily history</h2>
+    <table id="history"><tbody><tr><td class="muted">loading…</td></tr></tbody></table>
+
+    <script type="module">
+      import { WireBoardClient } from 'https://esm.sh/@wireboard/api';
+
+      const token = localStorage.WIREBOARD_TOKEN;
+      if (!token) {
+        document.body.insertAdjacentHTML('beforeend',
+          '<p class="error">No token. Set <code>localStorage.WIREBOARD_TOKEN</code> and reload.</p>');
+        throw new Error('no token');
+      }
+
+      const wb = new WireBoardClient({ token });
+      const { sites } = await wb.sites();
+      if (sites.length === 0) throw new Error('no sites in this account');
+      const wantedSiteId = localStorage.WIREBOARD_SITE_ID;
+      const site = wantedSiteId ? sites.find((s) => s.id === wantedSiteId) : sites[0];
+      if (!site) throw new Error(`site '${wantedSiteId}' not found in account`);
+      document.getElementById('site-label').innerHTML =
+        `<b>${site.domain}</b> <code>${site.id}</code>`;
+      document.title = `Historical — ${site.domain}`;
+
+      const today = new Date();
+      const fromDate = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+      const range = { site_id: site.id, from: fromDate, to: today };
+
+      // 1. Aggregate
+      const summary = await wb.aggregate(range);
+      document.getElementById('stats').innerHTML = `
+        <div class="stat"><div class="label">visitors</div><div class="value">${summary.visitors}</div></div>
+        <div class="stat"><div class="label">pageviews</div><div class="value">${summary.pageviews}</div></div>
+        <div class="stat"><div class="label">bounce</div><div class="value">${summary.bounce_rate}%</div></div>
+        <div class="stat"><div class="label">avg session</div><div class="value">${summary.visit_duration}s</div></div>`;
+
+      // 2. Top countries
+      const top = await wb.breakdown({ ...range, dimension: 'country', limit: 10 });
+      document.getElementById('countries').innerHTML =
+        '<thead><tr><th>country</th><th>visitors</th></tr></thead><tbody>' +
+        (top.rows.length === 0
+          ? '<tr><td colspan="2" class="muted">no traffic in window</td></tr>'
+          : top.rows.map((r) => `<tr><td>${r.country}</td><td>${r.visitors}</td></tr>`).join('')) +
+        '</tbody>';
+
+      // 3. Daily history
+      const hist = await wb.history(range);
+      document.getElementById('history').innerHTML =
+        '<thead><tr><th>date</th><th>visitors</th><th>returning</th><th>pageviews</th><th>bounce</th><th>avg dur</th></tr></thead><tbody>' +
+        hist.points.map((p) => `<tr>
+          <td>${p.date}</td>
+          <td>${p.visitors}</td>
+          <td>${p.returning_visitors}</td>
+          <td>${p.pageviews}</td>
+          <td>${p.bounce_rate}%</td>
+          <td>${p.avg_duration}s</td>
+        </tr>`).join('') +
+        '</tbody>';
+    </script>
+  </body>
+</html>

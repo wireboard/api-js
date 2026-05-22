@@ -1,0 +1,11 @@
+# Normalize line endings to LF for every text file. Prevents WSL/Windows
+# checkouts from baking CRLF into the published npm tarball, which would
+# break shebangs in dist/cli.js and play badly with Unix consumers.
+* text=auto eol=lf
+
+# Force binary on known binary types (no smudging).
+*.png  binary
+*.jpg  binary
+*.gif  binary
+*.ico  binary
+*.tgz  binary

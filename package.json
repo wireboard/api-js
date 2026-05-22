@@ -1,0 +1,85 @@
+{
+  "name": "@wireboard/api",
+  "version": "1.0.0",
+  "description": "Official TypeScript SDK for the WireBoard REST and Live (SSE) APIs.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "browser": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.browser.js"
+      },
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "bin": "./dist/cli.js",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "size": "size-limit",
+    "verify": "node dist/cli.js verify",
+    "prepublishOnly": "npm run typecheck && npm run test && npm run build && npm run size"
+  },
+  "dependencies": {
+    "eventsource": "^2.0.2"
+  },
+  "devDependencies": {
+    "@size-limit/preset-small-lib": "^11.1.0",
+    "@types/eventsource": "^1.1.15",
+    "@types/node": "^20.11.0",
+    "size-limit": "^11.1.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.4.0",
+    "vitest": "^4.1.7"
+  },
+  "size-limit": [
+    {
+      "name": "browser ESM",
+      "path": "dist/index.browser.js",
+      "limit": "15 KB",
+      "gzip": true
+    }
+  ],
+  "keywords": [
+    "wireboard",
+    "analytics",
+    "sse",
+    "real-time",
+    "sdk"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wireboard/api-js.git"
+  },
+  "homepage": "https://github.com/wireboard/api-js#readme",
+  "bugs": {
+    "url": "https://github.com/wireboard/api-js/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

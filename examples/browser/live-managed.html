@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>WireBoard · Live (managed mode)</title>
+    <style>
+      :root {
+        --blue: #2563eb;
+        --green: #16a34a;
+        --gray-50: #f8fafc;
+        --gray-100: #f1f5f9;
+        --gray-200: #e2e8f0;
+        --gray-500: #64748b;
+        --gray-700: #334155;
+        --gray-900: #0f172a;
+        --radius: 8px;
+      }
+      *, *::before, *::after { box-sizing: border-box; }
+      body {
+        font: 14px/1.6 -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+        color: var(--gray-900);
+        max-width: 760px;
+        margin: 0 auto;
+        padding: 2em 1.5em 4em;
+        background: white;
+      }
+      header {
+        display: flex; align-items: center; gap: 0.9em;
+        padding-bottom: 1em; margin-bottom: 1.6em;
+        border-bottom: 1px solid var(--gray-200);
+      }
+      header img { height: 28px; }
+      header h1 { font-size: 16px; font-weight: 600; margin: 0; color: var(--gray-700); }
+      header .crumb { margin-left: auto; font-size: 13px; }
+      header .crumb a { color: var(--blue); text-decoration: none; }
+      header .crumb a:hover { text-decoration: underline; }
+
+      .picker {
+        display: flex; align-items: center; gap: 0.8em;
+        background: var(--gray-50);
+        border: 1px solid var(--gray-200);
+        border-radius: var(--radius);
+        padding: 0.7em 1em;
+        margin-bottom: 1.6em;
+      }
+      .picker label {
+        font-size: 11px; font-weight: 600;
+        text-transform: uppercase; letter-spacing: 0.05em;
+        color: var(--gray-500);
+      }
+      .picker select {
+        flex: 1;
+        font: inherit; color: var(--gray-900);
+        background: white;
+        border: 1px solid var(--gray-200);
+        border-radius: 6px;
+        padding: 6px 10px;
+        cursor: pointer;
+      }
+      .picker select:focus { outline: 2px solid var(--blue); outline-offset: -1px; }
+
+      h2 {
+        font-size: 12px; font-weight: 600;
+        text-transform: uppercase; letter-spacing: 0.06em;
+        color: var(--gray-500);
+        margin: 2em 0 0.6em;
+      }
+      .gauges {
+        display: grid; grid-template-columns: 1fr 1fr;
+        gap: 1px;
+        background: var(--gray-200);
+        border: 1px solid var(--gray-200);
+        border-radius: var(--radius);
+        overflow: hidden;
+      }
+      .gauge { background: white; padding: 1.2em; }
+      .gauge .label {
+        display: flex; align-items: center; gap: 0.5em;
+        font-size: 11px; font-weight: 600;
+        text-transform: uppercase; letter-spacing: 0.05em;
+        color: var(--gray-500);
+      }
+      .pulse {
+        width: 8px; height: 8px; border-radius: 50%;
+        background: var(--green);
+        box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.6);
+        animation: pulse 1.6s infinite;
+      }
+      @keyframes pulse {
+        0%   { box-shadow: 0 0 0 0   rgba(22, 163, 74, 0.6); }
+        70%  { box-shadow: 0 0 0 8px rgba(22, 163, 74, 0); }
+        100% { box-shadow: 0 0 0 0   rgba(22, 163, 74, 0); }
+      }
+      .gauge .value {
+        font-variant-numeric: tabular-nums;
+        font-size: 32px; font-weight: 600;
+        color: var(--gray-900);
+        margin-top: 0.2em;
+      }
+      ul.list {
+        list-style: none; padding: 0; margin: 0;
+        background: white;
+        border: 1px solid var(--gray-200);
+        border-radius: var(--radius);
+        overflow: hidden;
+      }
+      ul.list li {
+        display: flex; justify-content: space-between; align-items: center; gap: 1em;
+        padding: 10px 14px;
+        border-bottom: 1px solid var(--gray-200);
+      }
+      ul.list li:last-child { border-bottom: 0; }
+      ul.list li .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      ul.list li b {
+        font-variant-numeric: tabular-nums;
+        font-weight: 600;
+        color: var(--gray-700);
+      }
+      code {
+        font: 12px/1.4 ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+        background: var(--gray-100); padding: 2px 6px; border-radius: 4px; color: var(--gray-700);
+      }
+      .muted { color: var(--gray-500); }
+      .error {
+        background: #fef2f2; border: 1px solid #fecaca; color: #991b1b;
+        padding: 0.8em 1em; border-radius: var(--radius);
+      }
+      .banner {
+        padding: 0.7em 1em; border-radius: var(--radius);
+        font-size: 13px; margin-bottom: 1em;
+      }
+      .banner.warn  { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; }
+      .banner.error { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+      .banner.hidden { display: none; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <img src="https://wireboard.io/img/logo-blue.png" alt="WireBoard" />
+      <h1>Live · managed mode</h1>
+      <span class="crumb"><a href="./">all examples</a></span>
+    </header>
+
+    <div class="picker">
+      <label for="site">Site</label>
+      <select id="site" aria-label="Site"></select>
+    </div>
+
+    <div class="banner hidden" id="status"></div>
+
+    <div class="gauges">
+      <div class="gauge">
+        <div class="label"><span class="pulse"></span> Live now</div>
+        <div class="value" id="live">—</div>
+      </div>
+      <div class="gauge">
+        <div class="label">Returning</div>
+        <div class="value" id="returning">—</div>
+      </div>
+    </div>
+
+    <h2>Top pages</h2>
+    <ul class="list" id="top-pages"><li class="muted">connecting…</li></ul>
+
+    <h2>Top countries</h2>
+    <ul class="list" id="top-countries"><li class="muted">connecting…</li></ul>
+
+    <script type="module">
+      import { WireBoardClient } from 'https://esm.sh/@wireboard/api';
+
+      const token = localStorage.WIREBOARD_TOKEN;
+      if (!token) {
+        document.body.insertAdjacentHTML('beforeend',
+          '<p class="error">No token. Set <code>localStorage.WIREBOARD_TOKEN</code> and reload.</p>');
+        throw new Error('no token');
+      }
+
+      const wb = new WireBoardClient({ token });
+      const { sites } = await wb.sites();
+      if (sites.length === 0) throw new Error('no sites in this account');
+
+      const selectEl    = document.getElementById('site');
+      const liveEl      = document.getElementById('live');
+      const returningEl = document.getElementById('returning');
+      const pagesEl     = document.getElementById('top-pages');
+      const countriesEl = document.getElementById('top-countries');
+      const statusEl    = document.getElementById('status');
+
+      function showStatus(kind, msg) {
+        statusEl.className = `banner ${kind}`;
+        statusEl.textContent = msg;
+      }
+      function hideStatus() {
+        statusEl.className = 'banner hidden';
+        statusEl.textContent = '';
+      }
+      function describeError(err) {
+        if (err?.httpStatus === 429) {
+          const wait = err.rateLimit?.retryAfter ?? 60;
+          return `Rate-limited on /v1/live/token (120 mints/min). Wait ~${wait}s before switching site again.`;
+        }
+        if (err?.code === 'concurrent_limit_reached') {
+          return `Too many open Live subscriptions on this team (cap: 10). Close other tabs and retry.`;
+        }
+        return err?.message ?? String(err);
+      }
+
+      // Populate dropdown.
+      selectEl.innerHTML = sites
+        .map((s) => `<option value="${s.id}">${s.domain}</option>`)
+        .join('');
+
+      const wantedSiteId = localStorage.WIREBOARD_SITE_ID;
+      if (wantedSiteId && sites.some((s) => s.id === wantedSiteId)) {
+        selectEl.value = wantedSiteId;
+      }
+
+      let current = null;
+
+      function render(state) {
+        liveEl.textContent      = state?.live.visitors?.live      ?? '—';
+        returningEl.textContent = state?.live.visitors?.returning ?? '—';
+
+        const tp = state?.live.top_pages ?? [];
+        pagesEl.innerHTML = tp.length === 0
+          ? '<li class="muted">no live pages</li>'
+          : tp.slice(0, 10).map((p) =>
+              `<li><span class="name">${p.title ?? p.url}</span><b>${p.count}</b></li>`).join('');
+
+        const tc = state?.live.top_countries ?? [];
+        countriesEl.innerHTML = tc.length === 0
+          ? '<li class="muted">no countries yet</li>'
+          : tc.slice(0, 10).map((c) =>
+              `<li><span class="name">${c.country}</span><b>${c.count}</b></li>`).join('');
+      }
+
+      function reset() {
+        liveEl.textContent = '—';
+        returningEl.textContent = '—';
+        pagesEl.innerHTML = '<li class="muted">connecting…</li>';
+        countriesEl.innerHTML = '<li class="muted">connecting…</li>';
+      }
+
+      async function openFor(siteId) {
+        if (current) current.stop();
+        reset();
+        hideStatus();
+        document.title = `Live — ${sites.find((s) => s.id === siteId)?.domain ?? siteId}`;
+        const next = wb.live({
+          siteId,
+          categories: ['visitors', 'top_pages', 'top_countries'],
+          onChange: render,
+          onError: (err) => {
+            console.error('live onError:', err);
+            showStatus('warn', `Stream warning: ${describeError(err)}`);
+          },
+        });
+        current = next;
+        try {
+          await current.start();
+        } catch (err) {
+          console.error('start failed:', err);
+          showStatus('error', `Couldn't open stream — ${describeError(err)}`);
+        }
+      }
+
+      selectEl.addEventListener('change', (e) => openFor(e.target.value));
+      window.addEventListener('beforeunload', () => current?.stop());
+
+      await openFor(selectEl.value);
+    </script>
+  </body>
+</html>

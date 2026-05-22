@@ -1,0 +1,589 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>WireBoard · Live (raw, multi-site)</title>
+    <style>
+      :root {
+        --blue: #2563eb;
+        --blue-50: #eff6ff;
+        --green: #16a34a;
+        --amber: #d97706;
+        --gray-50: #f8fafc;
+        --gray-100: #f1f5f9;
+        --gray-200: #e2e8f0;
+        --gray-500: #64748b;
+        --gray-700: #334155;
+        --gray-900: #0f172a;
+        --radius: 8px;
+      }
+      *, *::before, *::after { box-sizing: border-box; }
+      body {
+        font: 14px/1.6 -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+        color: var(--gray-900);
+        max-width: 980px;
+        margin: 0 auto;
+        padding: 2em 1.5em 4em;
+        background: white;
+      }
+      header {
+        display: flex; align-items: center; gap: 0.9em;
+        padding-bottom: 1em; margin-bottom: 1.6em;
+        border-bottom: 1px solid var(--gray-200);
+      }
+      header img { height: 28px; }
+      header h1 { font-size: 16px; font-weight: 600; margin: 0; color: var(--gray-700); }
+      header .crumb { margin-left: auto; font-size: 13px; }
+      header .crumb a { color: var(--blue); text-decoration: none; }
+      header .crumb a:hover { text-decoration: underline; }
+
+      h2 {
+        font-size: 12px; font-weight: 600;
+        text-transform: uppercase; letter-spacing: 0.06em;
+        color: var(--gray-500);
+        margin: 2em 0 0.6em;
+        display: flex; justify-content: space-between; align-items: center;
+      }
+      h2 .badge {
+        font-size: 11px; font-weight: 500;
+        text-transform: none; letter-spacing: 0;
+        color: var(--gray-500);
+      }
+
+      /* Site chips */
+      .chips {
+        display: flex; flex-wrap: wrap; gap: 6px;
+        padding: 0.9em 1em;
+        background: var(--gray-50);
+        border: 1px solid var(--gray-200);
+        border-radius: var(--radius);
+        margin-bottom: 1.6em;
+      }
+      .chip {
+        font: inherit; font-size: 13px;
+        border: 1px solid var(--gray-200);
+        background: white;
+        color: var(--gray-700);
+        padding: 4px 10px;
+        border-radius: 999px;
+        cursor: pointer;
+        transition: background 0.1s, border-color 0.1s, color 0.1s;
+      }
+      .chip:hover { border-color: var(--gray-500); }
+      .chip.on {
+        background: var(--blue);
+        border-color: var(--blue);
+        color: white;
+      }
+      .chips .actions {
+        margin-left: auto; display: flex; gap: 6px;
+      }
+      .chips .actions button {
+        font: inherit; font-size: 12px;
+        background: transparent; color: var(--gray-500);
+        border: 0; padding: 4px 8px; cursor: pointer;
+        border-radius: 4px;
+      }
+      .chips .actions button:hover { color: var(--gray-900); background: var(--gray-100); }
+
+      /* Cards */
+      .cards {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 12px;
+      }
+      .card {
+        background: white;
+        border: 1px solid var(--gray-200);
+        border-radius: var(--radius);
+        padding: 1em 1.1em;
+        position: relative;
+        transition: box-shadow 0.15s, border-color 0.15s;
+      }
+      .card.fresh { border-color: var(--green); box-shadow: 0 0 0 2px rgba(22, 163, 74, 0.18); }
+      .card .domain {
+        font-weight: 600; font-size: 13px;
+        word-break: break-all;
+      }
+      .card .id {
+        font: 11px ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+        color: var(--gray-500);
+        margin-bottom: 0.8em;
+      }
+      .card .grid {
+        display: grid; grid-template-columns: 1fr 1fr;
+        gap: 0.6em 1em;
+        padding: 0.5em 0;
+        border-top: 1px solid var(--gray-100);
+      }
+      .card .cell { min-width: 0; }
+      .card .cell .lbl {
+        font-size: 10px; font-weight: 600;
+        text-transform: uppercase; letter-spacing: 0.05em;
+        color: var(--gray-500);
+      }
+      .card .cell .val {
+        font-variant-numeric: tabular-nums;
+        font-size: 18px; font-weight: 600;
+        margin-top: 0.1em;
+        word-break: break-all;
+      }
+      .card .cell .val.text {
+        font-size: 13px; font-weight: 500;
+        word-break: break-all;
+      }
+      .card .recent {
+        margin-top: 0.6em; padding-top: 0.6em;
+        border-top: 1px solid var(--gray-100);
+        font-size: 12px;
+        color: var(--gray-500);
+        word-break: break-all;
+      }
+      .card .recent b { color: var(--gray-900); font-variant-numeric: tabular-nums; }
+      .card .last {
+        margin-top: 0.4em;
+        font-size: 11px;
+        color: var(--gray-500);
+      }
+      .card.empty .val, .card.empty .val.text { color: var(--gray-500); font-weight: 500; }
+      .empty-state {
+        grid-column: 1 / -1;
+        padding: 2em;
+        text-align: center;
+        color: var(--gray-500);
+        border: 1px dashed var(--gray-200);
+        border-radius: var(--radius);
+      }
+
+      .banner {
+        padding: 0.7em 1em;
+        border-radius: var(--radius);
+        font-size: 13px;
+        margin-bottom: 1em;
+        display: flex; gap: 0.7em; align-items: center;
+      }
+      .banner.info  { background: var(--blue-50); color: #1e40af; border: 1px solid #bfdbfe; }
+      .banner.warn  { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; }
+      .banner.error { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+      .banner.hidden { display: none; }
+      .spinner {
+        width: 12px; height: 12px;
+        border: 2px solid #bfdbfe;
+        border-top-color: var(--blue);
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+      }
+      @keyframes spin { to { transform: rotate(360deg); } }
+
+      /* Event log */
+      pre.log {
+        background: #0f172a;
+        color: #cbd5e1;
+        padding: 14px 16px;
+        border-radius: var(--radius);
+        font: 12px/1.55 ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+        max-height: 360px;
+        overflow: auto;
+        white-space: pre;
+        margin: 0;
+      }
+      pre.log:empty::before {
+        content: 'waiting for first envelope…';
+        color: #64748b;
+      }
+      pre.log .cat {
+        display: inline-block; min-width: 130px;
+        color: #93c5fd;
+      }
+      pre.log .domain { color: #fcd34d; }
+      pre.log .ts { color: #64748b; }
+
+      code {
+        font: 12px/1.4 ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+        background: var(--gray-100); padding: 2px 6px; border-radius: 4px; color: var(--gray-700);
+      }
+      .muted { color: var(--gray-500); }
+      .error {
+        background: #fef2f2; border: 1px solid #fecaca; color: #991b1b;
+        padding: 0.8em 1em; border-radius: var(--radius);
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <img src="https://wireboard.io/img/logo-blue.png" alt="WireBoard" />
+      <h1>Live · raw, multi-site</h1>
+      <span class="crumb"><a href="./">all examples</a></span>
+    </header>
+
+    <p class="muted">Click chips to toggle sites in/out of a single SSE connection. Cards update in place as raw envelopes arrive; the log below shows category-specific payload details.</p>
+
+    <div class="chips" id="chips">
+      <span class="muted">loading sites…</span>
+    </div>
+
+    <div class="banner hidden" id="status"></div>
+
+    <div class="cards" id="cards">
+      <div class="empty-state">Pick at least one site above to start streaming.</div>
+    </div>
+
+    <h2>Event log <span class="badge">latest 80, newest first</span></h2>
+    <pre class="log" id="log"></pre>
+
+    <script type="module">
+      import { WireBoardClient } from 'https://esm.sh/@wireboard/api';
+
+      const token = localStorage.WIREBOARD_TOKEN;
+      if (!token) {
+        document.body.insertAdjacentHTML('beforeend',
+          '<p class="error">No token. Set <code>localStorage.WIREBOARD_TOKEN</code> and reload.</p>');
+        throw new Error('no token');
+      }
+
+      const wb = new WireBoardClient({ token });
+      const { sites } = await wb.sites();
+      if (sites.length === 0) throw new Error('no sites in this account');
+
+      const chipsEl  = document.getElementById('chips');
+      const cardsEl  = document.getElementById('cards');
+      const logEl    = document.getElementById('log');
+      const statusEl = document.getElementById('status');
+
+      function showStatus(kind, html) {
+        statusEl.className = `banner ${kind}`;
+        statusEl.innerHTML = html;
+      }
+      function hideStatus() {
+        statusEl.className = 'banner hidden';
+        statusEl.innerHTML = '';
+      }
+
+      // ─── Selection state ───────────────────────────────────────────────────
+      // Each site adds 6 topics to the SSE URL, and the JWT re-encodes that
+      // same list as a base64 `subscribe` claim — so each selected site costs
+      // ~1 KB of URL. Most reverse proxies (nginx, Cloudflare, AWS ALB) cap
+      // the request line at 8–16 KB, so we soft-cap interactive selection
+      // at MAX_SITES to keep the example reliable on a real CDN edge.
+      const MAX_SITES = 10;
+      const siteById = new Map(sites.map((s) => [s.id, s]));
+      const selected = new Set(sites.slice(0, Math.min(5, sites.length)).map((s) => s.id));
+
+      function renderChips() {
+        const chipsHtml = sites.map((s) => `
+          <button class="chip ${selected.has(s.id) ? 'on' : ''}" data-id="${s.id}">
+            ${s.domain}
+          </button>`).join('');
+        const actionsHtml = `
+          <div class="actions">
+            <button data-action="all">Select all (max ${MAX_SITES})</button>
+            <button data-action="none">Clear</button>
+            <button data-action="first5">First 5</button>
+          </div>`;
+        chipsEl.innerHTML = chipsHtml + actionsHtml;
+      }
+
+      function showCapWarning() {
+        showStatus('warn',
+          `Capped selection at ${MAX_SITES} sites — each site adds 6 SSE topics + ` +
+          `re-encodes them in the JWT, so larger selections exceed typical ` +
+          `8–16 KB proxy URL limits and the edge drops the connection.`);
+      }
+
+      chipsEl.addEventListener('click', (e) => {
+        const action = e.target.closest('[data-action]')?.dataset.action;
+        if (action === 'all') {
+          selected.clear();
+          sites.slice(0, Math.min(MAX_SITES, sites.length)).forEach((s) => selected.add(s.id));
+          renderChips();
+          if (sites.length > MAX_SITES) showCapWarning();
+          scheduleRestart();
+          return;
+        }
+        if (action === 'none')  { selected.clear();                            renderChips(); scheduleRestart(); return; }
+        if (action === 'first5'){ selected.clear(); sites.slice(0, 5).forEach((s) => selected.add(s.id)); renderChips(); scheduleRestart(); return; }
+        const chip = e.target.closest('.chip[data-id]');
+        if (!chip) return;
+        const id = chip.dataset.id;
+        if (selected.has(id)) {
+          selected.delete(id);
+        } else {
+          if (selected.size >= MAX_SITES) {
+            showCapWarning();
+            return;
+          }
+          selected.add(id);
+        }
+        renderChips();
+        scheduleRestart();
+      });
+
+      // ─── Per-site live state ───────────────────────────────────────────────
+      const stateBySite = new Map();
+      function initState(id) {
+        stateBySite.set(id, {
+          visitors:    null,
+          topPage:     null,
+          topCountry:  null,
+          life:        null,
+          activeCount: null,
+          lastTs:      null,
+        });
+      }
+
+      function renderCards() {
+        if (selected.size === 0) {
+          cardsEl.innerHTML = '<div class="empty-state">Pick at least one site above to start streaming.</div>';
+          return;
+        }
+        cardsEl.innerHTML = [...selected].map(cardHtml).join('');
+      }
+
+      function cardHtml(id) {
+        const s = stateBySite.get(id);
+        const site = siteById.get(id);
+        const live      = s?.visitors?.live;
+        const returning = s?.visitors?.returning;
+        const topPage   = s?.topPage;
+        const topCountry= s?.topCountry;
+        const life      = s?.life;
+        const last      = s?.lastTs ? agoText(s.lastTs) : 'no data yet';
+        return `
+          <div class="card ${s?.lastTs ? '' : 'empty'}" id="card-${id}">
+            <div class="domain">${site?.domain ?? id}</div>
+            <div class="id">${id}</div>
+            <div class="grid">
+              <div class="cell">
+                <div class="lbl">Live</div>
+                <div class="val">${live ?? '—'}</div>
+              </div>
+              <div class="cell">
+                <div class="lbl">Returning</div>
+                <div class="val">${returning ?? '—'}</div>
+              </div>
+              <div class="cell">
+                <div class="lbl">Top page</div>
+                <div class="val text">${topPage ? (topPage.title ?? hostPath(topPage.url)) : '—'}${topPage ? ` <span class="muted">(${topPage.count})</span>` : ''}</div>
+              </div>
+              <div class="cell">
+                <div class="lbl">Top country</div>
+                <div class="val">${topCountry ? `${topCountry.country} <span class="muted">(${topCountry.count})</span>` : '—'}</div>
+              </div>
+            </div>
+            ${life ? `<div class="recent">arrived <b>${life.arrived}</b> · nav <b>${life.navigated}</b> · departed <b>${life.departed}</b></div>` : ''}
+            <div class="last">last event: ${last}</div>
+          </div>`;
+      }
+
+      function hostPath(url) {
+        try { const u = new URL(url); return u.pathname || u.hostname; }
+        catch { return url; }
+      }
+
+      function agoText(ts) {
+        const d = Date.now() - new Date(ts).getTime();
+        if (d < 1000) return 'just now';
+        if (d < 60_000) return `${Math.floor(d / 1000)}s ago`;
+        return `${Math.floor(d / 60_000)}m ago`;
+      }
+
+      // Tick "last event: Xs ago" without forcing a full re-render.
+      setInterval(() => {
+        if (selected.size === 0) return;
+        for (const id of selected) {
+          const s = stateBySite.get(id);
+          if (!s?.lastTs) continue;
+          const lastEl = document.querySelector(`#card-${id} .last`);
+          if (lastEl) lastEl.textContent = `last event: ${agoText(s.lastTs)}`;
+        }
+      }, 1000);
+
+      // ─── Event log ─────────────────────────────────────────────────────────
+      const logLines = [];
+      function appendLog(env) {
+        const domain = siteById.get(env.site_id)?.domain ?? env.site_id;
+        const ts = env.ts.slice(11, 19);
+        const line =
+          `<span class="ts">[${ts}]</span>  ` +
+          `<span class="domain">${domain.padEnd(28)}</span>  ` +
+          `<span class="cat">${env.category.padEnd(18)}</span>` +
+          ` ${summarize(env)}`;
+        logLines.unshift(line);
+        if (logLines.length > 80) logLines.length = 80;
+        logEl.innerHTML = logLines.join('\n');
+      }
+
+      function summarize(env) {
+        switch (env.category) {
+          case 'visitors':
+            return `live: ${env.data.live}, returning: ${env.data.returning}`;
+          case 'top_pages':
+          case 'top_referrers':
+          case 'top_countries':
+          case 'top_devices':
+          case 'top_browsers':
+          case 'top_oses':
+          case 'top_languages':
+          case 'top_screens':
+          case 'top_mediums':
+          case 'top_sources':
+          case 'top_search':
+          case 'top_social': {
+            const live = env.data.filter((r) => r.count > 0);
+            const dropped = env.data.length - live.length;
+            const sorted = [...live].sort((a, b) => b.count - a.count);
+            const topLabel = sorted[0]
+              ? `${topNameFor(env.category, sorted[0])} (${sorted[0].count})`
+              : '—';
+            return `top: ${topLabel}${dropped ? ` · ${dropped} drop` : ''}`;
+          }
+          case 'geo': {
+            const live = env.data.filter((g) => g.count > 0);
+            const dropped = env.data.length - live.length;
+            return `${live.length} hex${dropped ? ` · ${dropped} drop` : ''}`;
+          }
+          case 'life_events':
+            return `+${env.data.arrived} arrived, ${env.data.navigated} nav, ${env.data.departed} departed`;
+          case 'active_sessions': {
+            const live = env.data.filter((s) => s.step_count > 0).length;
+            const dropped = env.data.length - live;
+            return `${live} active${dropped ? ` · ${dropped} ended` : ''}`;
+          }
+          case 'events':
+            return env.data.length === 0
+              ? '(empty)'
+              : env.data.map((e) => `${e.category}/${e.action}×${e.count}`).join(', ');
+          case 'time_spent':
+          case 'pages_per_session':
+          case 'performance':
+            return Object.entries(env.data)
+              .filter(([k]) => k !== 'ts')
+              .map(([k, v]) => `${k}:${v}`)
+              .join(' ');
+          default:
+            return '';
+        }
+      }
+
+      function topNameFor(category, row) {
+        switch (category) {
+          case 'top_pages':       return row.title ?? hostPath(row.url);
+          case 'top_referrers':   return hostPath(row.url);
+          case 'top_mediums':     return row.medium;
+          case 'top_sources':     return row.source;
+          case 'top_search':      return row.term;
+          case 'top_social':      return row.network;
+          case 'top_countries':   return row.country;
+          case 'top_devices':     return row.device;
+          case 'top_browsers':    return row.browser;
+          case 'top_oses':        return row.os;
+          case 'top_languages':   return row.language;
+          case 'top_screens':     return row.resolution;
+          default:                return JSON.stringify(row);
+        }
+      }
+
+      // ─── Subscription lifecycle ────────────────────────────────────────────
+      let current = null;
+      let restartTimer = null;
+      // Long enough that rapid chip-clicks collapse into a single restart,
+      // keeping us well under the /v1/live/token rate cap (120/min).
+      const RESTART_DEBOUNCE_MS = 1500;
+
+      function scheduleRestart() {
+        if (restartTimer) clearTimeout(restartTimer);
+        showStatus('info', '<span class="spinner"></span> applying selection…');
+        restartTimer = setTimeout(restart, RESTART_DEBOUNCE_MS);
+      }
+
+      function highlightCard(id) {
+        const el = document.getElementById(`card-${id}`);
+        if (!el) return;
+        el.classList.add('fresh');
+        clearTimeout(el._t);
+        el._t = setTimeout(() => el.classList.remove('fresh'), 700);
+      }
+
+      function describeError(err) {
+        if (err && typeof err === 'object' && err.httpStatus === 429) {
+          const wait = err.rateLimit?.retryAfter ?? 60;
+          return `Rate-limited on /v1/live/token (120 mints/min cap). Wait ~${wait}s before changing the selection again.`;
+        }
+        if (err && typeof err === 'object' && err.code === 'concurrent_limit_reached') {
+          return `Too many open Live subscriptions on this team (cap: 10). Close other tabs/windows and try again.`;
+        }
+        return (err && err.message) ? err.message : String(err);
+      }
+
+      async function restart() {
+        if (current) { current.stop(); current = null; }
+        stateBySite.clear();
+        [...selected].forEach(initState);
+        renderCards();
+        if (selected.size === 0) { hideStatus(); return; }
+
+        showStatus('info', `<span class="spinner"></span> opening stream for ${selected.size} site(s)…`);
+
+        try {
+          const next = wb.liveRaw({
+            sites: [...selected],
+            categories: [
+              'visitors', 'top_pages', 'top_countries', 'top_referrers',
+              'active_sessions', 'life_events',
+            ],
+            onEvent(env) {
+              const s = stateBySite.get(env.site_id);
+              if (!s) return;
+              s.lastTs = env.ts;
+              switch (env.category) {
+                case 'visitors':
+                  s.visitors = env.data;
+                  break;
+                case 'top_pages': {
+                  const live = env.data.filter((p) => p.count > 0).sort((a, b) => b.count - a.count);
+                  if (live.length > 0) s.topPage = live[0];
+                  else if (s.topPage && env.data.some((p) => p.count === 0 && p.url === s.topPage.url)) s.topPage = null;
+                  break;
+                }
+                case 'top_countries': {
+                  const live = env.data.filter((c) => c.count > 0).sort((a, b) => b.count - a.count);
+                  if (live.length > 0) s.topCountry = live[0];
+                  else if (s.topCountry && env.data.some((c) => c.count === 0 && c.country === s.topCountry.country)) s.topCountry = null;
+                  break;
+                }
+                case 'life_events':
+                  s.life = env.data;
+                  break;
+                case 'active_sessions': {
+                  const active = env.data.filter((a) => a.step_count > 0).length;
+                  s.activeCount = active;
+                  break;
+                }
+              }
+              renderCards();
+              highlightCard(env.site_id);
+              appendLog(env);
+            },
+            onError(err) {
+              console.error('raw onError:', err);
+              showStatus('warn', `Stream warning: ${describeError(err)}`);
+            },
+          });
+          current = next;
+          await current.start();
+          showStatus('info', `streaming ${selected.size} site(s)`);
+          setTimeout(() => { if (statusEl.classList.contains('info')) hideStatus(); }, 1500);
+        } catch (err) {
+          console.error('start failed:', err);
+          showStatus('error', `Couldn't open stream — ${describeError(err)}`);
+        }
+      }
+
+      renderChips();
+      renderCards();
+      await restart();
+
+      window.addEventListener('beforeunload', () => current?.stop());
+    </script>
+  </body>
+</html>
