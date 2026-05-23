@@ -16,6 +16,8 @@ import type {
   EventsResult,
   HistoryParams,
   HistoryResult,
+  LiveCategoriesData,
+  LiveDataMap,
   LiveOptions,
   LiveRawOptions,
   LiveStateSnapshot,
@@ -28,6 +30,33 @@ import type {
   UrlsResult,
   WireBoardClientOptions,
 } from './types.js';
+
+/**
+ * The shape `/v1/live/state` ACTUALLY returns today: `live` is an array of
+ * `{category, ts, data}` envelopes (same shape as the SSE message stream).
+ * The public spec documents `live` as a per-category map (`{visitors: …, …}`),
+ * but the server emits the array form. We accept either at the boundary and
+ * normalise to the spec-compliant map before handing the snapshot upward, so
+ * customer code and merge logic always see the documented shape.
+ */
+type RawLiveStateSnapshot = Omit<LiveStateSnapshot, 'live'> & {
+  live: Partial<LiveCategoriesData> | ReadonlyArray<RawLiveSnapshotEnvelope>;
+};
+
+type RawLiveSnapshotEnvelope = {
+  [C in LiveCategory]: { category: C; ts: string; data: LiveDataMap[C] };
+}[LiveCategory];
+
+function normalizeLiveStateSnapshot(raw: RawLiveStateSnapshot): LiveStateSnapshot {
+  if (!Array.isArray(raw.live)) {
+    return raw as LiveStateSnapshot;
+  }
+  const live: Partial<LiveCategoriesData> = {};
+  for (const env of raw.live) {
+    (live as Record<string, unknown>)[env.category] = env.data;
+  }
+  return { ...raw, live };
+}
 
 interface CallOpts {
   signal?: AbortSignal;
@@ -136,11 +165,16 @@ export class WireBoardClient {
    * reconnect to recover from missed drop signals. Categories not in the
    * request are omitted from `live`.
    */
-  liveState(
+  async liveState(
     params: { site_id: string; categories?: LiveCategory[] },
     opts?: CallOpts,
   ): Promise<LiveStateSnapshot> {
-    return this.transport.get<LiveStateSnapshot>('/v1/live/state', params, opts);
+    const raw = await this.transport.get<RawLiveStateSnapshot>(
+      '/v1/live/state',
+      params,
+      opts,
+    );
+    return normalizeLiveStateSnapshot(raw);
   }
 
   /**

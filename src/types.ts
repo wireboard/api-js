@@ -372,7 +372,7 @@ export interface ActiveSessionEntry {
  * `LiveCategoriesData` (merged-state) type mirrors it (with arrays where the
  * payload is an array and `T | null` where the payload is a single object).
  */
-interface LiveDataMap {
+export interface LiveDataMap {
   visitors: VisitorsData;
   top_pages: TopPagesEntry[];
   top_referrers: TopReferrerEntry[];

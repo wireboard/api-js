@@ -95,12 +95,21 @@ export async function makeStubServer(): Promise<StubServer> {
         return;
       }
       const siteId = url.searchParams.get('site_id') ?? 'xK4mP2nT';
+      // Match the production server: `live` is emitted as an array of
+      // `{category, ts, data}` envelopes, not the map shape the public
+      // spec documents. The SDK normalises this at the client boundary.
+      const ts = new Date().toISOString();
+      const liveArray = Object.entries(stub.snapshot.live).map(([category, data]) => ({
+        category,
+        ts,
+        data,
+      }));
       sendJson(res, 200, {
         status: true,
         data: {
           site_id: siteId,
-          ts: new Date().toISOString(),
-          live: stub.snapshot.live,
+          ts,
+          live: liveArray,
           max_30d: stub.snapshot.max_30d,
           max_30d_at: stub.snapshot.max_30d_at,
         },

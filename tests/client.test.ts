@@ -199,6 +199,77 @@ describe('WireBoardClient — REST URLs', () => {
   });
 });
 
+describe('WireBoardClient — liveState normalization', () => {
+  // The production server returns `live` as an array of {category, ts, data}
+  // envelopes; the public spec documents it as a per-category map. The SDK
+  // accepts either shape at the boundary and normalises to the documented
+  // map shape. These tests cover both server behaviours.
+
+  it('normalises the array-of-envelopes shape (current production server) to a map', async () => {
+    const { fetch } = captureFetch(() =>
+      jsonResp(envelope({
+        site_id: 'xK4mP2nT',
+        ts: '2026-05-23T01:02:37.519Z',
+        live: [
+          { category: 'visitors',  ts: '2026-05-23T01:02:37.519Z', data: { live: 5, returning: 2 } },
+          { category: 'top_pages', ts: '2026-05-23T01:02:37.519Z', data: [{ url: '/a', title: 'A', count: 3 }] },
+        ],
+        max_30d: 12,
+        max_30d_at: '2026-05-22',
+      })),
+    );
+    const wb = new WireBoardClient({ token: 't', fetch });
+
+    const snap = await wb.liveState({ site_id: 'xK4mP2nT', categories: ['visitors', 'top_pages'] });
+
+    expect(snap.live).toEqual({
+      visitors:  { live: 5, returning: 2 },
+      top_pages: [{ url: '/a', title: 'A', count: 3 }],
+    });
+    expect(snap.max_30d).toBe(12);
+  });
+
+  it('passes through the map shape (spec-compliant server) unchanged', async () => {
+    const { fetch } = captureFetch(() =>
+      jsonResp(envelope({
+        site_id: 'xK4mP2nT',
+        ts: '2026-05-23T01:02:37.519Z',
+        live: {
+          visitors:  { live: 6, returning: 1 },
+          top_pages: [{ url: '/b', title: 'B', count: 2 }],
+        },
+        max_30d: null,
+        max_30d_at: null,
+      })),
+    );
+    const wb = new WireBoardClient({ token: 't', fetch });
+
+    const snap = await wb.liveState({ site_id: 'xK4mP2nT', categories: ['visitors', 'top_pages'] });
+
+    expect(snap.live).toEqual({
+      visitors:  { live: 6, returning: 1 },
+      top_pages: [{ url: '/b', title: 'B', count: 2 }],
+    });
+  });
+
+  it('normalises an empty array to an empty map', async () => {
+    const { fetch } = captureFetch(() =>
+      jsonResp(envelope({
+        site_id: 'xK4mP2nT',
+        ts: '2026-05-23T01:02:37.519Z',
+        live: [],
+        max_30d: null,
+        max_30d_at: null,
+      })),
+    );
+    const wb = new WireBoardClient({ token: 't', fetch });
+
+    const snap = await wb.liveState({ site_id: 'xK4mP2nT' });
+
+    expect(snap.live).toEqual({});
+  });
+});
+
 describe('WireBoardClient — withMeta', () => {
   it('returns data and rate-limit headers', async () => {
     const { fetch } = captureFetch(() =>
