@@ -1,6 +1,6 @@
 {
   "name": "@wireboard/api",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Official TypeScript SDK for the WireBoard REST and Live (SSE) APIs.",
   "license": "MIT",
   "type": "module",

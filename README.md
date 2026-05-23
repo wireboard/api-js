@@ -14,6 +14,13 @@
   Pull historical analytics, subscribe to real-time visitor activity, and integrate WireBoard with anything you can write code against.
 </p>
 
+<p align="center">
+  <a href="https://www.npmjs.com/package/@wireboard/api"><img src="https://img.shields.io/npm/v/@wireboard/api.svg" alt="npm version"></a>
+  <a href="https://bundlephobia.com/package/@wireboard/api"><img src="https://img.shields.io/bundlephobia/minzip/@wireboard/api?label=bundle%20size" alt="bundle size (minified + gzipped)"></a>
+  <a href="https://www.npmjs.com/package/@wireboard/api"><img src="https://img.shields.io/npm/types/@wireboard/api.svg" alt="types: TypeScript"></a>
+  <a href="./LICENSE"><img src="https://img.shields.io/npm/l/@wireboard/api.svg" alt="license: MIT"></a>
+</p>
+
 ---
 
 - Works in modern browsers and Node 18+
