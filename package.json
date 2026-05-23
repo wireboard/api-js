@@ -1,6 +1,6 @@
 {
   "name": "@wireboard/api",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Official TypeScript SDK for the WireBoard REST and Live (SSE) APIs.",
   "license": "MIT",
   "type": "module",
@@ -24,7 +24,9 @@
     },
     "./package.json": "./package.json"
   },
-  "bin": "./dist/cli.js",
+  "bin": {
+    "wireboard-api": "./dist/cli.js"
+  },
   "files": [
     "dist",
     "README.md",
