@@ -189,14 +189,28 @@ import { WireBoardClient } from '@wireboard/api';
 const wb = new WireBoardClient({ token: yourShortLivedTokenFromYourServer });
 ```
 
-For production, do **not** ship your long-lived bearer token to the
-browser. Mint short-lived subscriber JWTs server-side via
-[`liveToken()`](https://wireboard.io/docs/api-live#mint-jwt) and pass
-those to the browser.
+The long-lived bearer token does **not** belong in untrusted contexts.
+The right architecture depends on your audience:
 
-Working browser demos live in [`examples/browser/`](./examples/browser/) —
-four zero-build pages covering REST, historical analytics, and both Live
-modes. See [`examples/`](./examples/) for the full set.
+- **Internal pages** (team views, ops displays, admin dashboards behind
+  your own auth): use the SDK directly in the browser with the
+  two-token flow. Your server mints a short-lived subscriber JWT via
+  [`liveToken()`](https://wireboard.io/docs/api-live#mint-jwt), the
+  browser opens `wb.live(...)` with it. The JWT is scoped to specific
+  sites + categories and expires in 15 minutes, so it's safe in
+  bounded-audience client code.
+
+- **Public-facing pages**: don't put either the bearer or a JWT in the
+  browser. Use the SDK on your backend to either poll `liveState()` and
+  serve a cached snapshot, or hold one `wb.live(...)` connection and
+  fan out updates to your visitors via your own SSE or WebSocket. See
+  [Scaling browser subscribers](https://wireboard.io/docs/api-live#scaling)
+  in the docs for the three patterns and which to pick.
+
+Working browser demos in [`examples/browser/`](./examples/browser/)
+cover the internal-page case — four zero-build pages covering REST,
+historical analytics, and both Live modes. See
+[`examples/`](./examples/) for the full set.
 
 ## Errors
 
