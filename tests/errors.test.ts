@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { WireBoardApiError, WireBoardAuthError } from '../src/errors.js';
+import {
+  PaidPlanRequiredError,
+  PlanHistoryLimitExceededError,
+  WireBoardApiError,
+  WireBoardAuthError,
+} from '../src/errors.js';
 
 describe('WireBoardApiError', () => {
   it('captures code, fieldErrors, httpStatus, rateLimit', () => {
@@ -42,5 +47,51 @@ describe('WireBoardAuthError', () => {
   it('captures httpStatus 403', () => {
     const err = new WireBoardAuthError('Invalid ability provided.', 403);
     expect(err.httpStatus).toBe(403);
+  });
+});
+
+describe('PlanHistoryLimitExceededError', () => {
+  it('is a subclass of WireBoardApiError, code is locked, earliestAllowed parses fieldErrors', () => {
+    const err = new PlanHistoryLimitExceededError({
+      message: 'Your plan limits historical queries to the last 30 days.',
+      fieldErrors: {
+        error_code: ['plan_history_limit_exceeded'],
+        earliest_allowed: ['2026-04-24'],
+      },
+      httpStatus: 422,
+      rateLimit: undefined,
+    });
+    expect(err).toBeInstanceOf(WireBoardApiError);
+    expect(err).toBeInstanceOf(Error);
+    expect(err.code).toBe('plan_history_limit_exceeded');
+    expect(err.earliestAllowed).toBe('2026-04-24');
+    expect(err.httpStatus).toBe(422);
+    expect(err.name).toBe('PlanHistoryLimitExceededError');
+  });
+
+  it('earliestAllowed is null when the server omits the field', () => {
+    const err = new PlanHistoryLimitExceededError({
+      message: 'plan limit',
+      fieldErrors: { error_code: ['plan_history_limit_exceeded'] },
+      httpStatus: 422,
+      rateLimit: undefined,
+    });
+    expect(err.earliestAllowed).toBeNull();
+  });
+});
+
+describe('PaidPlanRequiredError', () => {
+  it('is a subclass of WireBoardApiError (NOT WireBoardAuthError) with locked code', () => {
+    const err = new PaidPlanRequiredError({
+      message: 'This endpoint requires a paid plan. Upgrade to access the Live API.',
+      fieldErrors: { error_code: ['paid_plan_required'] },
+      httpStatus: 403,
+      rateLimit: undefined,
+    });
+    expect(err).toBeInstanceOf(WireBoardApiError);
+    expect(err).not.toBeInstanceOf(WireBoardAuthError);
+    expect(err.code).toBe('paid_plan_required');
+    expect(err.httpStatus).toBe(403);
+    expect(err.name).toBe('PaidPlanRequiredError');
   });
 });

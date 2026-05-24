@@ -214,16 +214,38 @@ historical analytics, and both Live modes. See
 
 ## Errors
 
-Two error classes, both extend `Error`:
+Four error classes. `WireBoardApiError` is the base for everything except
+auth failures; `WireBoardAuthError` is for auth failures; the other two
+are typed subclasses of `WireBoardApiError` for plan-gating errors that
+deserve a distinct UX path.
 
 ```ts
-import { WireBoardApiError, WireBoardAuthError } from '@wireboard/api';
+import {
+  WireBoardApiError,
+  WireBoardAuthError,
+  PaidPlanRequiredError,
+  PlanHistoryLimitExceededError,
+} from '@wireboard/api';
 
 try {
   await wb.aggregate({ site_id, from, to });
 } catch (err) {
+  // Catch the most specific subclasses first.
+
+  if (err instanceof PlanHistoryLimitExceededError) {
+    // 422 — free plan, `from` is older than 30 days ago.
+    // err.earliestAllowed is 'YYYY-MM-DD'; retry with that, or prompt upgrade.
+    return wb.aggregate({ site_id, from: err.earliestAllowed!, to });
+  }
+
+  if (err instanceof PaidPlanRequiredError) {
+    // 403 — endpoint requires a paid plan (currently the entire Live API).
+    // Auth is FINE; surface an upgrade prompt, don't re-login.
+    return showUpgradePrompt();
+  }
+
   if (err instanceof WireBoardAuthError) {
-    // 401 → re-auth; 403 → re-mint a token with the right abilities
+    // 401 → re-auth; 403 → re-mint a token with the right abilities.
   } else if (err instanceof WireBoardApiError) {
     switch (err.code) {
       case 'site_not_found':           /* unknown site or wrong team */ break;
@@ -236,6 +258,10 @@ try {
   throw err;
 }
 ```
+
+`PlanHistoryLimitExceededError` and `PaidPlanRequiredError` both extend
+`WireBoardApiError`, so existing `instanceof WireBoardApiError` checks
+keep working — order your `instanceof` checks specific-to-general.
 
 The SDK auto-retries **once** on a 429 (honouring `Retry-After`). Opt out
 with `new WireBoardClient({ token, retryOn429: false })`. There are no

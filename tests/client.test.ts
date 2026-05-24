@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { WireBoardClient } from '../src/client.js';
-import { WireBoardApiError, WireBoardAuthError } from '../src/errors.js';
+import {
+  PaidPlanRequiredError,
+  PlanHistoryLimitExceededError,
+  WireBoardApiError,
+  WireBoardAuthError,
+} from '../src/errors.js';
 
 interface RecordedCall {
   url: string;
@@ -73,6 +78,48 @@ describe('WireBoardClient — envelope unwrap', () => {
     const { fetch } = captureFetch(() => jsonResp({ message: 'Invalid ability provided.' }, 403));
     const wb = new WireBoardClient({ token: 't', fetch });
     await expect(wb.account()).rejects.toMatchObject({ httpStatus: 403 });
+  });
+
+  it('throws PlanHistoryLimitExceededError on 422 with that error_code', async () => {
+    const { fetch } = captureFetch(() => jsonResp({
+      status: false,
+      errors: [{ text: 'Your plan limits historical queries to the last 30 days. Upgrade for full history.' }],
+      fieldErrors: {
+        error_code: ['plan_history_limit_exceeded'],
+        earliest_allowed: ['2026-04-24'],
+      },
+    }, 422));
+    const wb = new WireBoardClient({ token: 't', fetch });
+
+    const promise = wb.aggregate({ site_id: 'xK4mP2nT', from: '2020-01-01', to: '2026-05-23' });
+
+    await expect(promise).rejects.toBeInstanceOf(PlanHistoryLimitExceededError);
+    await expect(promise).rejects.toBeInstanceOf(WireBoardApiError); // subclass still matches the parent
+    await expect(promise).rejects.toMatchObject({
+      code: 'plan_history_limit_exceeded',
+      httpStatus: 422,
+      earliestAllowed: '2026-04-24',
+    });
+  });
+
+  it('throws PaidPlanRequiredError on 403 with that error_code (NOT WireBoardAuthError)', async () => {
+    const { fetch } = captureFetch(() => jsonResp({
+      status: false,
+      errors: [{ text: 'This endpoint requires a paid plan. Upgrade to access the Live API.' }],
+      fieldErrors: { error_code: ['paid_plan_required'] },
+    }, 403));
+    const wb = new WireBoardClient({ token: 't', fetch });
+
+    const promise = wb.liveToken({ sites: ['xK4mP2nT'] });
+
+    await expect(promise).rejects.toBeInstanceOf(PaidPlanRequiredError);
+    await expect(promise).rejects.toBeInstanceOf(WireBoardApiError);
+    // Critically: this is NOT an auth error, even though the HTTP status is 403.
+    await expect(promise).rejects.not.toBeInstanceOf(WireBoardAuthError);
+    await expect(promise).rejects.toMatchObject({
+      code: 'paid_plan_required',
+      httpStatus: 403,
+    });
   });
 });
 

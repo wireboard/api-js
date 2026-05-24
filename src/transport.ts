@@ -1,4 +1,9 @@
-import { WireBoardApiError, WireBoardAuthError } from './errors.js';
+import {
+  PaidPlanRequiredError,
+  PlanHistoryLimitExceededError,
+  WireBoardApiError,
+  WireBoardAuthError,
+} from './errors.js';
 import { serializeParams } from './serialize.js';
 import type { RateLimitInfo } from './types.js';
 import { VERSION } from './version.js';
@@ -67,12 +72,52 @@ export class Transport {
       return this.request<T>(path, params, opts, true);
     }
 
-    if (res.status === 401 || res.status === 403) {
-      const body = (await safeJson(res)) as { message?: string };
-      throw new WireBoardAuthError(body?.message ?? `HTTP ${res.status}`, res.status);
+    const body = await safeJson(res);
+
+    // Success path.
+    const success = body as Partial<SuccessEnvelope<T>> | undefined;
+    if (success?.status === true) {
+      this.responseHook?.(rateLimit);
+      return success.data as T;
     }
 
-    const body = await safeJson(res);
+    // Extract the envelope's discriminators once; both the typed-error
+    // classification and the generic-error fallback need them.
+    const err = (body && typeof body === 'object' ? body : {}) as ErrorEnvelope;
+    const code = err.fieldErrors?.['error_code']?.[0] ?? null;
+    const message =
+      err.errors?.[0]?.text ?? err.message ?? `HTTP ${res.status}`;
+
+    // Plan-gating errors take precedence over generic auth/api classification.
+    // `paid_plan_required` is a 403 but it's NOT an auth issue (the token is
+    // valid; the user just needs to upgrade). `plan_history_limit_exceeded`
+    // is a 422 but has a structured `earliest_allowed` hint the caller can
+    // act on. Both deserve typed catches so MCP / UI layers can surface
+    // upgrade prompts and auto-corrected ranges without string-matching.
+    if (code === 'plan_history_limit_exceeded') {
+      throw new PlanHistoryLimitExceededError({
+        message,
+        fieldErrors: err.fieldErrors,
+        httpStatus: res.status,
+        rateLimit,
+      });
+    }
+    if (code === 'paid_plan_required') {
+      throw new PaidPlanRequiredError({
+        message,
+        fieldErrors: err.fieldErrors,
+        httpStatus: res.status,
+        rateLimit,
+      });
+    }
+
+    // Real auth failures: 401 = no/invalid creds, 403 = creds OK but token
+    // can't do this (missing ability, etc.). Plan-gating 403s were caught
+    // above; what falls through here is genuine "re-auth or re-mint" UX.
+    if (res.status === 401 || res.status === 403) {
+      throw new WireBoardAuthError(message, res.status);
+    }
+
     if (body === undefined) {
       throw new WireBoardApiError({
         message: `HTTP ${res.status}: invalid JSON response`,
@@ -83,16 +128,6 @@ export class Transport {
       });
     }
 
-    const success = body as Partial<SuccessEnvelope<T>>;
-    if (success.status === true) {
-      this.responseHook?.(rateLimit);
-      return success.data as T;
-    }
-
-    const err = body as ErrorEnvelope;
-    const code = err.fieldErrors?.['error_code']?.[0] ?? null;
-    const message =
-      err.errors?.[0]?.text ?? err.message ?? `HTTP ${res.status}`;
     throw new WireBoardApiError({
       message,
       code,

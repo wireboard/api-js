@@ -1,5 +1,10 @@
 export { WireBoardClient } from './client.js';
-export { WireBoardApiError, WireBoardAuthError } from './errors.js';
+export {
+  PaidPlanRequiredError,
+  PlanHistoryLimitExceededError,
+  WireBoardApiError,
+  WireBoardAuthError,
+} from './errors.js';
 export { LiveClient } from './live/managed.js';
 export { LiveRawClient } from './live/raw.js';
 export { registerEventSource } from './live/eventsource.js';
