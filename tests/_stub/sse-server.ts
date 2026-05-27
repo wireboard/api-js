@@ -5,6 +5,8 @@ interface Connection {
   id: number;
   topics: string[];
   authorization: string;
+  /** Which transport the client used to send the JWT. */
+  authVia: 'header' | 'query' | 'none';
   res: ServerResponse;
   open: boolean;
 }
@@ -27,6 +29,12 @@ export interface StubServer {
    * rotation-failure paths.
    */
   failNextStream: boolean;
+  /**
+   * When set, `/v1/live/token` returns this string verbatim as `hub_url`
+   * instead of the stub's own loopback URL. Used to exercise the SDK's
+   * scheme-validation guard.
+   */
+  hubUrlOverride: string | null;
   /** How many times /v1/live/token has been called. */
   tokenCount(): number;
   /** How many times /v1/live/state has been called. */
@@ -48,12 +56,14 @@ export async function makeStubServer(): Promise<StubServer> {
     snapshot: StubServer['snapshot'];
     tokenExpiresIn: number;
     failNextStream: boolean;
+    hubUrlOverride: string | null;
   } = {
     url: '',
     connections,
     snapshot: { live: {}, max_30d: null, max_30d_at: null },
     tokenExpiresIn: 900,
     failNextStream: false,
+    hubUrlOverride: null,
   };
 
   const server: Server = createServer((req: IncomingMessage, res: ServerResponse) => {
@@ -70,7 +80,7 @@ export async function makeStubServer(): Promise<StubServer> {
       const categories = url.searchParams.get('categories')?.split(',') ?? [];
       const tokenStr = `jwt-${nextTokenId++}`;
       const addr = server.address() as AddressInfo;
-      const hub = `http://127.0.0.1:${addr.port}/v1/live/stream`;
+      const hub = stub.hubUrlOverride ?? `http://127.0.0.1:${addr.port}/v1/live/stream`;
       const topics = sites.flatMap((s) =>
         categories.map((c) => `https://wireboard.io/sites/${s}/live/${c}`),
       );
@@ -125,7 +135,19 @@ export async function makeStubServer(): Promise<StubServer> {
         return;
       }
       const topics = url.searchParams.getAll('topic');
-      const authorization = url.searchParams.get('authorization') ?? '';
+      // Accept the JWT either via the `Authorization: Bearer <token>` header
+      // (Node clients using eventsource@^2 with header support) or as a
+      // `?authorization=` query param (W3C-spec browser EventSource).
+      const headerAuth = typeof req.headers['authorization'] === 'string'
+        ? (req.headers['authorization'] as string).replace(/^Bearer\s+/i, '')
+        : '';
+      const queryAuth = url.searchParams.get('authorization') ?? '';
+      const authorization = headerAuth || queryAuth;
+      const authVia: 'header' | 'query' | 'none' = headerAuth
+        ? 'header'
+        : queryAuth
+          ? 'query'
+          : 'none';
       res.writeHead(200, {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache',
@@ -136,6 +158,7 @@ export async function makeStubServer(): Promise<StubServer> {
         id: nextConnId++,
         topics,
         authorization,
+        authVia,
         res,
         open: true,
       };
@@ -176,6 +199,12 @@ export async function makeStubServer(): Promise<StubServer> {
     },
     set failNextStream(v: boolean) {
       stub.failNextStream = v;
+    },
+    get hubUrlOverride() {
+      return stub.hubUrlOverride;
+    },
+    set hubUrlOverride(v: string | null) {
+      stub.hubUrlOverride = v;
     },
     tokenCount: () => tokenCalls,
     snapshotCount: () => snapshotCalls,

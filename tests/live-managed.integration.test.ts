@@ -5,7 +5,13 @@ import { registerEventSource } from '../src/live/eventsource.js';
 import type { ManagedLiveState } from '../src/types.js';
 import { makeStubServer, type StubServer } from './_stub/sse-server.js';
 
-registerEventSource(EventSource as unknown as new (url: string) => globalThis.EventSource);
+// Match the SDK's Node entry: register with supportsHeaders so the
+// subscription engine puts the JWT in an Authorization header instead
+// of the URL query string.
+registerEventSource(
+  EventSource as unknown as new (url: string) => globalThis.EventSource,
+  { supportsHeaders: true },
+);
 
 const SITE = 'xK4mP2nT';
 
@@ -253,6 +259,45 @@ describe('LiveClient — snapshot + stream', () => {
     const fortyTwos = visitorSeen.filter((v) => v === 42).length;
     expect(fortyTwos).toBe(1);
     expect(rotateCount).toBeGreaterThanOrEqual(1);
+
+    live.stop();
+  });
+});
+
+describe('LiveClient — JWT transport (header vs query)', () => {
+  let stub: StubServer;
+  beforeEach(async () => { stub = await makeStubServer(); });
+  afterEach(async () => { await stub.close(); });
+
+  it('refuses to open an EventSource on a non-loopback http hub_url', async () => {
+    // If a compromised or misconfigured server returned an `http://` non-loopback
+    // hub, naively connecting would leak the live JWT in cleartext. The SDK
+    // must refuse to open the EventSource and surface the error via onError.
+    stub.hubUrlOverride = 'http://evil.example.com/v1/live/stream';
+    const wb = new WireBoardClient({ token: 't', baseUrl: stub.url });
+    const errors: Error[] = [];
+    const live = wb.live({
+      siteId: SITE,
+      categories: ['visitors'],
+      onError: (e) => errors.push(e),
+    });
+    await expect(live.start()).rejects.toThrow(/insecure hub/i);
+    expect(stub.connections.length).toBe(0);
+    live.stop();
+  });
+
+  it('sends the JWT as an Authorization header and NOT in the stream URL', async () => {
+    const wb = new WireBoardClient({ token: 't', baseUrl: stub.url });
+    const live = wb.live({ siteId: SITE, categories: ['visitors'] });
+    await live.start();
+    await stub.waitForConnections(1);
+
+    // The Node test path registers EventSource with `supportsHeaders: true`,
+    // so the JWT must travel as an Authorization header. The query-string
+    // form must NOT be used (it leaks tokens into access logs / referrers).
+    const conn = stub.connections[stub.connections.length - 1]!;
+    expect(conn.authVia).toBe('header');
+    expect(conn.authorization).toMatch(/^jwt-\d+$/);
 
     live.stop();
   });

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { WireBoardClient } from '../src/client.js';
 import {
   PaidPlanRequiredError,
@@ -180,6 +180,42 @@ describe('WireBoardClient — rate limit', () => {
       expect(apiErr.rateLimit?.limit).toBe(120);
       expect(apiErr.rateLimit?.remaining).toBe(0);
       expect(apiErr.rateLimit?.retryAfter).toBe(0);
+    }
+  });
+
+  it('caps Retry-After at 60s so a hostile or buggy server can\'t pin the client', async () => {
+    // The transport reads Retry-After and waits that many seconds before
+    // its single retry. If the server sends `Retry-After: 86400` we must
+    // not actually sleep for a day — clamp to MAX_RETRY_AFTER_SECONDS=60.
+    // Fake timers let us observe the requested sleep without waiting it out.
+    vi.useFakeTimers();
+    try {
+      let calls = 0;
+      const { fetch } = captureFetch(() => {
+        calls++;
+        if (calls === 1) {
+          return jsonResp({ message: 'too many' }, 429, { 'Retry-After': '86400' });
+        }
+        return jsonResp(envelope({ email: 's', name: 'S', abilities: [] }));
+      });
+      const wb = new WireBoardClient({ token: 't', fetch });
+      const pending = wb.account();
+
+      // Drain the first fetch + safeJson() microtasks.
+      await vi.advanceTimersByTimeAsync(0);
+      expect(calls).toBe(1);
+
+      // 59 999 ms in — must still be sleeping, not retried yet.
+      await vi.advanceTimersByTimeAsync(59_999);
+      expect(calls).toBe(1);
+
+      // Crossing 60 000 ms releases the retry; the server returns success.
+      await vi.advanceTimersByTimeAsync(2);
+      const a = await pending;
+      expect(a.email).toBe('s');
+      expect(calls).toBe(2);
+    } finally {
+      vi.useRealTimers();
     }
   });
 

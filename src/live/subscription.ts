@@ -4,7 +4,7 @@ import type {
   LiveEnvelope,
   LiveTokenResult,
 } from '../types.js';
-import { getEventSource } from './eventsource.js';
+import { eventSourceSupportsHeaders, getEventSource } from './eventsource.js';
 
 /**
  * Narrow interface the subscription uses to mint JWTs and fetch snapshots.
@@ -110,9 +110,14 @@ export class Subscription {
     try {
       await this.mintAndOpen(false);
     } catch (err) {
+      // `rejectStart` settles the long-lived startPromise that `openStream`
+      // resolves on the EventSource 'open' event. We must NOT also re-throw
+      // here: if we did, the caller would await `start()` (which returns
+      // `this.startPromise`) and observe the rejection through it — while
+      // the un-awaited re-throw from this async function would become an
+      // unhandled rejection on the inner promise. Settle once, return once.
       this.rejectStart(err);
       this.status = 'closed';
-      throw err;
     }
     return this.startPromise;
   }
@@ -175,9 +180,12 @@ export class Subscription {
 
   private openStream(token: LiveTokenResult, isRotation: boolean): void {
     if (this.isClosed()) return;
-    const url = buildStreamUrl(token);
+    const useHeaders = eventSourceSupportsHeaders();
+    const url = buildStreamUrl(token, !useHeaders);
     const ES = getEventSource();
-    const es = new ES(url);
+    const es = useHeaders
+      ? new ES(url, { headers: { Authorization: `Bearer ${token.token}` } })
+      : new ES(url);
     const ownGeneration = this.generation;
     let promoted = false;
     let torndown = false;
@@ -364,9 +372,34 @@ export class Subscription {
   }
 }
 
-function buildStreamUrl(token: LiveTokenResult): string {
+function buildStreamUrl(token: LiveTokenResult, includeJwtInUrl: boolean): string {
   const u = new URL(token.hub_url);
+  assertSafeHubScheme(u);
   for (const topic of token.topics) u.searchParams.append('topic', topic);
-  u.searchParams.append('authorization', token.token);
+  if (includeJwtInUrl) {
+    u.searchParams.append('authorization', token.token);
+  }
   return u.toString();
+}
+
+/**
+ * Defense-in-depth: only open EventSource connections to https hubs, or to
+ * loopback addresses for local development / tests. A malicious or
+ * misconfigured `liveToken` response that returned an `http://...`
+ * non-loopback hub would otherwise leak the JWT in cleartext.
+ */
+function assertSafeHubScheme(u: URL): void {
+  if (u.protocol === 'https:') return;
+  if (
+    u.protocol === 'http:' &&
+    (u.hostname === 'localhost' ||
+      u.hostname === '127.0.0.1' ||
+      u.hostname === '::1' ||
+      u.hostname === '[::1]')
+  ) {
+    return;
+  }
+  throw new Error(
+    `Refusing to open EventSource on insecure hub: ${u.protocol}//${u.host} (expected https or loopback)`,
+  );
 }

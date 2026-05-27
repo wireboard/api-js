@@ -179,8 +179,24 @@ export class WireBoardClient {
 
   /**
    * `GET /v1/live/token` — mint a short-lived (15 min) subscriber JWT scoped
-   * to a set of sites + categories. Pass the returned `token` as the
-   * `?authorization=` query param on the SSE EventSource URL.
+   * to a set of sites + categories.
+   *
+   * How to attach the returned `token` to the SSE connection depends on
+   * your EventSource implementation:
+   *
+   * - **Node** (the `eventsource` npm package, or any constructor that
+   *   accepts `{ headers }` in its init): pass as
+   *   `Authorization: Bearer <token>` header. Keeps the JWT out of URLs,
+   *   access logs, and error reporters.
+   * - **Browser** (W3C-spec native `EventSource`, which can't set custom
+   *   headers): pass as `?authorization=<token>` query parameter on the
+   *   stream URL.
+   *
+   * The SDK's managed (`wb.live`) and raw (`wb.liveRaw`) Live clients
+   * select the right pattern automatically based on the registered
+   * EventSource (see `registerEventSource(..., { supportsHeaders })`).
+   * You only need to think about this if you're building a custom SSE
+   * client over `liveToken()` directly.
    */
   liveToken(
     params?: { sites?: string[]; categories?: LiveCategory[] },

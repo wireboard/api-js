@@ -17,6 +17,14 @@ export interface TransportOptions {
 
 export type ResponseHook = (info: RateLimitInfo) => void;
 
+/**
+ * Upper bound on Retry-After honoring. The server's documented worst-case
+ * sleep is `Retry-After: 60` on rate-limit (per api-errors.md); anything
+ * larger is either a server bug or hostile input and we refuse to wait
+ * longer than 60 s before retrying.
+ */
+const MAX_RETRY_AFTER_SECONDS = 60;
+
 interface SuccessEnvelope<T> {
   status: true;
   data: T;
@@ -66,7 +74,10 @@ export class Transport {
     const rateLimit = parseRateLimit(res);
 
     if (res.status === 429 && this.opts.retryOn429 && !didRetry) {
-      const wait = (rateLimit.retryAfter ?? 5) * 1000;
+      // Cap server-supplied Retry-After so a misbehaving or malicious server
+      // can't pin the client in a multi-minute (or multi-year) hang.
+      const requested = rateLimit.retryAfter ?? 5;
+      const wait = Math.min(Math.max(requested, 0), MAX_RETRY_AFTER_SECONDS) * 1000;
       await drain(res);
       await sleep(wait, opts?.signal);
       return this.request<T>(path, params, opts, true);

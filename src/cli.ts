@@ -7,7 +7,10 @@ import { registerEventSource } from './live/eventsource.js';
 import type { LiveCategory, LiveEnvelope } from './public.js';
 import { VERSION } from './version.js';
 
-registerEventSource(EventSource as unknown as new (url: string) => globalThis.EventSource);
+registerEventSource(
+  EventSource as unknown as new (url: string) => globalThis.EventSource,
+  { supportsHeaders: true },
+);
 
 interface ParsedArgs {
   subcommand: string | undefined;
