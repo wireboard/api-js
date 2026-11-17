@@ -25,9 +25,16 @@ export interface Account {
 export interface Site {
   id: string;
   domain: string;
-  /** Highest concurrent live visitor count over the last 30 days. `null` if no traffic. */
+  /**
+   * Highest number of visitors on the site at the same time over the last 30
+   * complete UTC days. The current day is included once it has ended, so a
+   * site whose only traffic is today still has `null`. `null` if no traffic.
+   */
   max_30d: number | null;
-  /** UTC timestamp of when `max_30d` was last reached. `null` if `max_30d` is null. */
+  /**
+   * UTC date (`YYYY-MM-DD`) of the day `max_30d` was reached, the most recent
+   * one if several days tie. `null` if `max_30d` is null.
+   */
   max_30d_at: string | null;
 }
 
@@ -142,9 +149,20 @@ export interface UrlsParams {
 
 export interface UrlRow {
   url: string;
+  /**
+   * Visits that started on this URL (entrances). A visitor who reaches the URL
+   * later in a visit counts in `pageviews` only. Rows are ordered by this.
+   */
   visitors: number;
+  /** All pageviews of this URL. */
   pageviews: number;
+  /** Percentage of the visits that started on this URL and saw no other page. */
   bounce_rate: number;
+  /**
+   * Average time on this URL per pageview, in seconds (the dashboard's figure).
+   * Time is measured when the visitor moves to another page, so it is averaged
+   * over pageviews minus bounces.
+   */
   avg_duration: number;
 }
 

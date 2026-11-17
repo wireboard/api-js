@@ -4,6 +4,18 @@ All notable changes to `@wireboard/api` will be documented here. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.7] - 2026-11-17
+
+### Documentation
+- `Site.max_30d` covers the last 30 complete UTC days (the current day is
+  included once it has ended); `Site.max_30d_at` is a UTC date
+  (`YYYY-MM-DD`), not a timestamp.
+- `UrlRow` fields documented as the API computes them: `visitors` are
+  entrances (visits that started on the URL), `bounce_rate` is per visit
+  that started there, and `avg_duration` is the time per pageview. The API
+  fixed `avg_duration` on 2026-11-17 (WireBoard 1.9.2.30): it was divided
+  by entrances, which overstated pages reached during a visit.
+
 ## [1.0.6] — 2026-05-27
 
 ### Security
